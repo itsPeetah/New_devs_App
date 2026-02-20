@@ -1,21 +1,38 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Union
+from zoneinfo import ZoneInfo
 
-async def calculate_monthly_revenue(property_id: str, month: int, year: int, db_session=None) -> Decimal:
+
+async def calculate_monthly_revenue(property_id: str, month: int, year: int, tz: Union[str, ZoneInfo] = "UTC", db_session=None) -> Decimal:
     """
-    Calculates revenue for a specific month.
+    Calculates revenue for a specific month. Accepts a timezone (string or ZoneInfo)
+    which will be used to localize the start/end datetimes and converted to UTC
+    before running any queries.
     """
 
-    start_date = datetime(year, month, 1)
-    if month < 12:
-        end_date = datetime(year, month + 1, 1)
+    # Ensure we have a ZoneInfo instance
+    if isinstance(tz, str):
+        local_tz = ZoneInfo(tz)
     else:
-        end_date = datetime(year + 1, 1, 1)
-        
-    print(f"DEBUG: Querying revenue for {property_id} from {start_date} to {end_date}")
+        local_tz = tz
+
+    # Local start/end in provided timezone
+    start_local = datetime(year, month, 1, tzinfo=local_tz)
+    if month < 12:
+        end_local = datetime(year, month + 1, 1, tzinfo=local_tz)
+    else:
+        end_local = datetime(year + 1, 1, 1, tzinfo=local_tz)
+
+    # Convert to UTC for querying the DB (which should use UTC timestamps)
+    start_utc = start_local.astimezone(ZoneInfo("UTC"))
+    end_utc = end_local.astimezone(ZoneInfo("UTC"))
+
+    print(f"DEBUG: Querying revenue for {property_id} from {start_utc} to {end_utc} (UTC)")
 
     # SQL Simulation (This would be executed against the actual DB)
+    # Note: pass `start_utc` and `end_utc` to the query parameters so the
+    # database comparison is done against UTC timestamps.
     query = """
         SELECT SUM(total_amount) as total
         FROM reservations
